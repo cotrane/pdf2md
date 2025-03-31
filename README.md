@@ -89,13 +89,28 @@ uv run src/run.py --input input.pdf --parser anthropic --model claude-3-sonnet-2
 
 Available models per parser:
 
-- Anthropic: `claude-3-sonnet-20240229`, `claude-3-opus-20240229`, `claude-3-haiku-20240307`
-- Google AI: `gemini-pro`, `gemini-pro-vision`
-- OpenAI: `gpt-4-turbo-preview`, `gpt-3.5-turbo`
-- Mistral: `mistral-large-latest`, `mistral-medium-latest`, `mistral-small-latest`
+- Anthropic:
+  - `claude-3-7-sonnet-20250219` (default)
+  - `claude-3-5-sonnet-20241022`
+- Google AI:
+  - `gemini-1.5-flash`
+  - `gemini-2.0-flash` (default)
+  - `gemini-2.0-flash-thinking-exp-01-21`
+  - `gemini-2.5-pro-exp-03-25`
+- OpenAI:
+  - `gpt-4o` (default)
+  - `gpt-4o-mini`
+  - `gpt-4.5-preview`
+  - `o1`
+- Mistral: `mistral-ocr-latest`
 - Ollama: Any model available in your Ollama installation
 - Textract: No model selection
-- Unstructured.io: Uses their default model (`gpt-4o`)
+- Unstructured.io:
+  - `gpt-4o` (default)
+  - `claude-3-5-sonnet-20241022`
+  - `gemini-2.0-flash-001`
+  - `hi-res`
+  - `fast`
 
 ### Evaluating Results
 
