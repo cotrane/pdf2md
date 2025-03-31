@@ -71,30 +71,44 @@ class GoogleAIParser(BaseParser):
         self.validate_pdf_path(pdf_path)
 
         try:
-            # Read the PDF file
-            self.logger.debug(f"Reading PDF file: {pdf_path}")
-            pdf_file = Path(pdf_path)
-            pdf_file_id = self.client.files.upload(file=pdf_file)
+            # In order to work around the free tier output token limit, we split the PDF into pages
+            # and process each page separately.
+            page_count = self.get_pdf_page_count(pdf_path)
 
-            prompt = "Convert the attached pdf to markdown format for me please."
+            if page_count > 1:
+                pdf_pages = self.split_pdf_into_pages(pdf_path)
+            else:
+                pdf_pages = [pdf_path]
 
-            response = self.client.models.generate_content(
-                model=self.model,
-                config=genai.types.GenerateContentConfig(  # type: ignore
-                    system_instruction=self.SYSTEM_PROMPT,
-                    temperature=self.temperature,
-                    top_p=self.top_p,
-                    top_k=self.top_k,
-                    max_output_tokens=self.max_tokens,
-                ),
-                contents=[
-                    prompt,
-                    pdf_file_id,
-                ],
-            )
+            markdown_text = ""
+            for pdf_page in pdf_pages:
+                # Read the PDF file
+                self.logger.debug(f"Reading PDF file: {pdf_page}")
+                pdf_file = Path(pdf_page)
+                pdf_file_id = self.client.files.upload(file=pdf_file)
+
+                prompt = "Convert the attached pdf to markdown format for me please."
+
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    config=genai.types.GenerateContentConfig(  # type: ignore
+                        system_instruction=self.SYSTEM_PROMPT,
+                        temperature=self.temperature,
+                        top_p=self.top_p,
+                        top_k=self.top_k,
+                        max_output_tokens=self.max_tokens,
+                    ),
+                    contents=[
+                        prompt,
+                        pdf_file_id,
+                    ],
+                )
+
+                markdown_text += response.text + "\n\n"
 
             self.logger.debug("Successfully received response from Gemini API")
-            return response.text
+
+            return markdown_text
 
         except Exception as e:
             self.logger.error(f"Error during PDF conversion: {str(e)}", exc_info=True)

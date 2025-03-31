@@ -67,53 +67,65 @@ class OpenAIParser(BaseParser):
         self.validate_pdf_path(pdf_path)
 
         try:
-            # Read the PDF file
-            self.logger.debug(f"Reading PDF file: {pdf_path}")
-            pdf_file = Path(pdf_path)
-            base64_string = self.read_pdf_as_base64(pdf_path)
+            page_count = self.get_pdf_page_count(pdf_path)
 
-            prompt = "Convert the attached pdf to markdown format for me please."
+            if page_count > 1:
+                pdf_pages = self.split_pdf_into_pages(pdf_path)
+            else:
+                pdf_pages = [pdf_path]
 
-            response = openai.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": self.SYSTEM_PROMPT,
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {  # type: ignore
-                                "type": "file",
-                                "file": {
-                                    "filename": pdf_file.name,
-                                    "file_data": f"data:application/pdf;base64,{base64_string}",
+            markdown_text = ""
+            for pdf_page in pdf_pages:
+                # Read the PDF file
+                self.logger.debug(f"Reading PDF file: {pdf_page}")
+                pdf_file = Path(pdf_page)
+                base64_string = self.read_pdf_as_base64(pdf_page)
+
+                prompt = "Convert the attached pdf to markdown format for me please."
+
+                response = openai.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": self.SYSTEM_PROMPT,
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {  # type: ignore
+                                    "type": "file",
+                                    "file": {
+                                        "filename": pdf_file.name,
+                                        "file_data": f"data:application/pdf;base64,{base64_string}",
+                                    },
                                 },
-                            },
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            },
-                        ],
-                    },
-                ],
-                temperature=self.temperature,
-                top_p=self.top_p,
-                max_completion_tokens=self.max_tokens,
-            )
+                                {
+                                    "type": "text",
+                                    "text": prompt,
+                                },
+                            ],
+                        },
+                    ],
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    max_completion_tokens=self.max_tokens,
+                )
+
+                # Check if we got a valid response
+                if not response.choices:
+                    raise ValueError("No response choices received from OpenAI API")
+
+                content = response.choices[0].message.content
+
+                if not content:
+                    raise ValueError("Empty response content received from OpenAI API")
+
+                markdown_text += content + "\n\n"
 
             self.logger.debug("Successfully received response from OpenAI API")
 
-            # Check if we got a valid response
-            if not response.choices:
-                raise ValueError("No response choices received from OpenAI API")
-
-            content = response.choices[0].message.content
-            if not content:
-                raise ValueError("Empty response content received from OpenAI API")
-
-            return content
+            return markdown_text
 
         except Exception as e:
             self.logger.error(f"Error during PDF conversion: {str(e)}", exc_info=True)
