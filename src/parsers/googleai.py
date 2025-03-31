@@ -3,7 +3,10 @@
 import os
 from pathlib import Path
 
+import tenacity
 from google import genai
+from google.genai.errors import ServerError
+from google.genai.types import File
 
 from .base import BaseParser
 
@@ -54,6 +57,41 @@ class GoogleAIParser(BaseParser):
         self.client = genai.Client(api_key=api_key)
         self.logger.debug("Gemini parser initialization complete")
 
+    @tenacity.retry(
+        stop=tenacity.stop_after_attempt(3),
+        wait=tenacity.wait_exponential(multiplier=1, min=4, max=15),
+        retry=tenacity.retry_if_exception_type(ServerError),
+    )
+    def generate_response(self, prompt: str, pdf_file_id: File) -> str:
+        """Generate a response from the Gemini API.
+
+        Args:
+            prompt (str): The prompt to generate a response for.
+            pdf_file_id (File): The ID of the PDF file to generate a response for.
+
+        Returns:
+            str: The generated response.
+
+        Raises:
+            Exception: If there's an error generating the response.
+        """
+        response = self.client.models.generate_content(
+            model=self.model,
+            config=genai.types.GenerateContentConfig(  # type: ignore
+                system_instruction=self.SYSTEM_PROMPT,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                max_output_tokens=self.max_tokens,
+            ),
+            contents=[
+                prompt,
+                pdf_file_id,
+            ],
+        )
+
+        return response.text  # type: ignore
+
     def convert_pdf_to_markdown(self, pdf_path: str) -> str:
         """Convert a PDF file to markdown using Gemini.
 
@@ -85,26 +123,13 @@ class GoogleAIParser(BaseParser):
                 # Read the PDF file
                 self.logger.debug(f"Reading PDF file: {pdf_page}")
                 pdf_file = Path(pdf_page)
-                pdf_file_id = self.client.files.upload(file=pdf_file)
+                pdf_file_id: File = self.client.files.upload(file=pdf_file)
 
                 prompt = "Convert the attached pdf to markdown format for me please."
 
-                response = self.client.models.generate_content(
-                    model=self.model,
-                    config=genai.types.GenerateContentConfig(  # type: ignore
-                        system_instruction=self.SYSTEM_PROMPT,
-                        temperature=self.temperature,
-                        top_p=self.top_p,
-                        top_k=self.top_k,
-                        max_output_tokens=self.max_tokens,
-                    ),
-                    contents=[
-                        prompt,
-                        pdf_file_id,
-                    ],
-                )
+                response_text = self.generate_response(prompt, pdf_file_id)
 
-                markdown_text += response.text + "\n\n"
+                markdown_text += response_text + "\n\n"
 
             self.logger.debug("Successfully received response from Gemini API")
 
