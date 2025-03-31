@@ -2,9 +2,12 @@
 
 import base64
 import logging
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
+
+import fitz  # PyMuPDF
 
 
 class BaseParser(ABC):
@@ -151,4 +154,83 @@ class BaseParser(ABC):
             self.logger.debug(f"Successfully saved markdown to {output_path}")
         except Exception as e:
             self.logger.error(f"Error saving markdown file: {str(e)}")
+            raise
+
+    def split_pdf_into_pages(self, pdf_path: str) -> list[str]:
+        """Split a multi-page PDF into separate single-page PDFs.
+
+        Args:
+            pdf_path (str): The path to the PDF file to split.
+
+        Returns:
+            list[str]: A list of paths to the created single-page PDF files.
+
+        Raises:
+            FileNotFoundError: If the PDF file doesn't exist.
+            IOError: If there's an error reading or writing the PDF files.
+            ValueError: If the file is not a PDF.
+        """
+        self.validate_pdf_path(pdf_path)
+
+        pdf_file = Path(pdf_path)
+        # Always use system temp directory
+        output_path = Path(tempfile.gettempdir()) / "pdf2md_pages"
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        output_files: list[str] = []
+        try:
+            # Open the PDF
+            doc = fitz.open(pdf_path)
+
+            # Split each page into a separate PDF
+            for page_num in range(len(doc)):
+                # Create a new PDF for this page
+                new_doc = fitz.open()
+                new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+
+                # Generate output filename with a unique identifier
+                output_file = (
+                    output_path
+                    / f"{pdf_file.stem}_page_{page_num + 1}_{tempfile.gettempprefix()}.pdf"
+                )
+
+                # Save the single-page PDF
+                new_doc.save(str(output_file))
+                new_doc.close()
+
+                output_files.append(str(output_file))
+
+            doc.close()
+            self.logger.debug(
+                f"Successfully split PDF into {len(output_files)} pages in {output_path}"
+            )
+            return output_files
+
+        except Exception as e:
+            self.logger.error(f"Error splitting PDF: {str(e)}")
+            raise
+
+    def get_pdf_page_count(self, pdf_path: str) -> int:
+        """Get the number of pages in a PDF file.
+
+        Args:
+            pdf_path (str): The path to the PDF file.
+
+        Returns:
+            int: The number of pages in the PDF.
+
+        Raises:
+            FileNotFoundError: If the PDF file doesn't exist.
+            IOError: If there's an error reading the PDF file.
+            ValueError: If the file is not a PDF.
+        """
+        self.validate_pdf_path(pdf_path)
+
+        try:
+            doc = fitz.open(pdf_path)
+            page_count = len(doc)
+            doc.close()
+            return page_count
+        except Exception as e:
+            self.logger.error(f"Error getting PDF page count: {str(e)}")
             raise

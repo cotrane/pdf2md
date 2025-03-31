@@ -39,7 +39,7 @@ class TextractParser(BaseParser):
             table_linearization_format="markdown",
             table_remove_column_headers=True,
             table_column_header_threshold=0.7,
-            table_duplicate_text_in_merged_cells=True,
+            table_duplicate_text_in_merged_cells=False,
             title_prefix="# ",
             section_header_prefix="## ",
             hide_figure_layout=True,  # Hide pandas column numbering
@@ -63,12 +63,23 @@ class TextractParser(BaseParser):
         self.logger.debug(f"Starting PDF to Markdown conversion for file: {pdf_path}")
 
         try:
-            # Analyze PDF with Textract
-            document = self.client.analyze_document(
-                file_source=pdf_path,
-                features=[Textract_Features.LAYOUT, Textract_Features.TABLES],
-            )
-            return document.get_text(self.config)
+            page_count = self.get_pdf_page_count(pdf_path)
+
+            if page_count > 1:
+                pdf_pages = self.split_pdf_into_pages(pdf_path)
+            else:
+                pdf_pages = [pdf_path]
+
+            markdown_text = ""
+            for pdf_page in pdf_pages:
+                # Analyze PDF with Textract
+                document = self.client.analyze_document(
+                    file_source=pdf_page,
+                    features=[Textract_Features.LAYOUT, Textract_Features.TABLES],
+                )
+                markdown_text += document.get_text(self.config) + "\n\n"
+
+            return markdown_text
 
         except Exception as e:
             self.logger.error(f"Error during PDF conversion: {str(e)}", exc_info=True)
