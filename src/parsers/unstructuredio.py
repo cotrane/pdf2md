@@ -14,9 +14,18 @@ class UnstructuredIOParser(BaseParser):
 
     AVAILABLE_MODELS = [
         "gpt-4o",
-        "gpt-3.5-turbo",
+        "claude-3-5-sonnet-20241022",
+        "gemini-2.0-flash-001",
+        "hi-res",
+        "fast",
     ]
     DEFAULT_MODEL = "gpt-4o"
+    MODEL_TO_PROVIDER = {
+        "gpt-4o": "openai",
+        "hi-res": None,
+        "claude-3-5-sonnet-20241022": "anthropic",
+        "gemini-2.0-flash-001": "vertexai",
+    }
 
     def __init__(
         self,
@@ -70,22 +79,38 @@ class UnstructuredIOParser(BaseParser):
         self.validate_pdf_path(pdf_path)
 
         try:
-            # Prepare the request
-            req = operations.PartitionRequest(
-                partition_parameters=shared.PartitionParameters(
-                    files=shared.Files(
-                        content=open(pdf_path, "rb"),
-                        file_name=pdf_path,
+            if self.model in ["hi-res", "fast"]:
+                # Prepare the request
+                req = operations.PartitionRequest(
+                    partition_parameters=shared.PartitionParameters(
+                        files=shared.Files(
+                            content=open(pdf_path, "rb"),
+                            file_name=pdf_path,
+                        ),
+                        strategy=shared.Strategy.HI_RES,
+                        languages=["eng"],
+                        split_pdf_page=True,
+                        split_pdf_allow_failed=True,
+                        split_pdf_concurrency_level=15,
                     ),
-                    strategy=shared.Strategy.VLM,
-                    vlm_model=self.model,  # type: ignore
-                    vlm_model_provider="openai",  # type: ignore
-                    languages=["eng"],
-                    split_pdf_page=True,
-                    split_pdf_allow_failed=True,
-                    split_pdf_concurrency_level=15,
-                ),
-            )
+                )
+            else:
+                # Prepare the request
+                req = operations.PartitionRequest(
+                    partition_parameters=shared.PartitionParameters(
+                        files=shared.Files(
+                            content=open(pdf_path, "rb"),
+                            file_name=pdf_path,
+                        ),
+                        strategy=shared.Strategy.VLM,
+                        vlm_model=self.model,  # type: ignore
+                        vlm_model_provider=self.MODEL_TO_PROVIDER[self.model],  # type: ignore
+                        languages=["eng"],
+                        split_pdf_page=True,
+                        split_pdf_allow_failed=True,
+                        split_pdf_concurrency_level=15,
+                    ),
+                )
 
             # Make the API request
             res = self.client.general.partition(request=req)
