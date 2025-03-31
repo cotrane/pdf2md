@@ -70,46 +70,52 @@ class AnthropicParser(BaseParser):
         self.validate_pdf_path(pdf_path)
 
         try:
-            # Read the PDF file
-            self.logger.debug(f"Reading PDF file: {pdf_path}")
-            pdf_file = Path(pdf_path)
-            with open(pdf_file, "rb") as f:
-                binary_data = f.read()
-                base64_encoded_data = base64.standard_b64encode(binary_data)
-                base64_string = base64_encoded_data.decode("utf-8")
+            page_count = self.get_pdf_page_count(pdf_path)
 
-            prompt = "Convert the attached pdf to markdown format for me please."
+            if page_count > 1:
+                pdf_pages = self.split_pdf_into_pages(pdf_path)
+            else:
+                pdf_pages = [pdf_path]
 
-            ocr_response = self.client.messages.create(  # type: ignore
-                model=self.model,
-                temperature=self.temperature,
-                top_k=self.top_k,
-                top_p=self.top_p,
-                max_tokens=self.max_tokens,
-                system=self.SYSTEM_PROMPT,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {  # type: ignore
-                                "type": "document",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": "application/pdf",
-                                    "data": base64_string,
+            markdown_text = ""
+            for pdf_page in pdf_pages:
+                # Read the PDF file
+                self.logger.debug(f"Reading PDF file: {pdf_page}")
+                base64_string = self.read_pdf_as_base64(pdf_page)
+
+                prompt = "Convert the attached pdf to markdown format for me please."
+
+                ocr_response = self.client.messages.create(  # type: ignore
+                    model=self.model,
+                    temperature=self.temperature,
+                    top_k=self.top_k,
+                    top_p=self.top_p,
+                    max_tokens=self.max_tokens,
+                    system=self.SYSTEM_PROMPT,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {  # type: ignore
+                                    "type": "document",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": "application/pdf",
+                                        "data": base64_string,
+                                    },
                                 },
-                            },
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            },
-                        ],
-                    }
-                ],
-            )
+                                {
+                                    "type": "text",
+                                    "text": prompt,
+                                },
+                            ],
+                        }
+                    ],
+                )
+                markdown_text += ocr_response.content[0].text + "\n\n"  # type: ignore
 
             self.logger.info("Successfully received response from Anthropic API")
-            return ocr_response.content[0].text  # type: ignore
+            return markdown_text
 
         except Exception as e:
             self.logger.error(f"Error during PDF conversion: {str(e)}", exc_info=True)
