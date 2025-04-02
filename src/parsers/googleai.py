@@ -28,7 +28,7 @@ class GoogleAIParser(BaseParser):
         temperature: float = 0.1,
         top_p: float = 0.1,
         top_k: int = 40,
-        max_tokens: int = 8192,
+        max_tokens: int = 65536,
     ) -> None:
         """Initialize the Gemini parser.
 
@@ -92,11 +92,12 @@ class GoogleAIParser(BaseParser):
 
         return response.text  # type: ignore
 
-    def convert_pdf_to_markdown(self, pdf_path: str) -> str:
+    def convert_pdf_to_markdown(self, pdf_path: str, split_pages: bool = False) -> str:
         """Convert a PDF file to markdown using Gemini.
 
         Args:
             pdf_path: The path to the PDF file to convert.
+            split_pages: Whether to split the PDF into pages. Default is False.
 
         Returns:
             The converted markdown text.
@@ -113,7 +114,7 @@ class GoogleAIParser(BaseParser):
             # and process each page separately.
             page_count = self.get_pdf_page_count(pdf_path)
 
-            if page_count > 1:
+            if page_count > 1 and split_pages:
                 pdf_pages = self.split_pdf_into_pages(pdf_path)
             else:
                 pdf_pages = [pdf_path]
