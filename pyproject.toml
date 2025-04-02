@@ -22,6 +22,7 @@ dependencies = [
     "amazon-textract-textractor[pdfium]>=1.9.1",
     "pymupdf>=1.25.4",
     "tenacity>=9.0.0",
+    "rouge>=1.0.1",
 ]
 
 [dependency-groups]

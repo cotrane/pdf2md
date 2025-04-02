@@ -2,16 +2,19 @@
 """Script to evaluate similarity between markdown files given a filestem and a list of parsers."""
 
 import argparse
+import csv
 import glob
 import itertools
 import logging
 import os
 import re
+import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from Levenshtein import distance, ratio
+from rouge import Rouge
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -180,6 +183,43 @@ def calculate_levenshtein_metrics(text1: str, text2: str) -> tuple[int, float]:
     return distance(text1, text2), ratio(text1, text2)
 
 
+def calculate_rouge_scores(text1: str, text2: str) -> dict[str, float]:
+    """Calculate ROUGE scores between two texts.
+
+    Args:
+        text1: First text to compare.
+        text2: Second text to compare.
+
+    Returns:
+        Dictionary containing ROUGE-1, ROUGE-2, and ROUGE-L scores.
+    """
+    # Set a higher recursion limit
+    sys.setrecursionlimit(10000)
+
+    # Limit text length to avoid recursion issues
+    max_length = 10000
+    if len(text1) > max_length:
+        text1 = text1[:max_length]
+    if len(text2) > max_length:
+        text2 = text2[:max_length]
+
+    rouge = Rouge()
+    try:
+        scores = rouge.get_scores(text1, text2, avg=True)
+        return {
+            "rouge-1": scores["rouge-1"]["f"],
+            "rouge-2": scores["rouge-2"]["f"],
+            "rouge-l": scores["rouge-l"]["f"],
+        }
+    except (ValueError, RecursionError) as e:
+        logger.warning(f"Error calculating ROUGE scores: {e}")
+        # If one of the texts is empty or contains no valid words
+        return {"rouge-1": 0.0, "rouge-2": 0.0, "rouge-l": 0.0}
+    finally:
+        # Reset recursion limit to default
+        sys.setrecursionlimit(1000)
+
+
 def create_word_overlap_heatmap(
     files: list[str],
     overlap_ratios: list[dict[str, str | float]],
@@ -207,7 +247,7 @@ def create_word_overlap_heatmap(
     matrix = np.zeros((n_files, n_files))
 
     # Create a mapping of file paths to indices
-    file_to_idx = {file: idx for idx, file in enumerate(files)}
+    file_to_idx = {os.path.basename(file): idx for idx, file in enumerate(files)}
 
     # Fill the matrix with overlap ratios
     for ratio_data in overlap_ratios:
@@ -269,7 +309,9 @@ def find_files(filestem: str, parsers: list[str]) -> list[str]:
     return files
 
 
-def evaluate_files(file1: str, file2: str, preprocess: bool = True) -> tuple[float, float, float]:
+def evaluate_files(
+    file1: str, file2: str, preprocess: bool = True
+) -> tuple[float, float, float, dict[str, float]]:
     """Evaluate similarity between two markdown files.
 
     Args:
@@ -283,7 +325,7 @@ def evaluate_files(file1: str, file2: str, preprocess: bool = True) -> tuple[flo
         Exception: If the files cannot be read.
 
     Returns:
-        Tuple containing (cosine similarity, word overlap ratio, levenshtein ratio).
+        Tuple containing (cosine similarity, word overlap ratio, levenshtein ratio, rouge scores).
     """
     # Read files
     try:
@@ -306,16 +348,11 @@ def evaluate_files(file1: str, file2: str, preprocess: bool = True) -> tuple[flo
         clean_text1 = text1
         clean_text2 = text2
 
-    # save preprocessed text to separate files
-    with open(f"output/{os.path.basename(file1)}_clean.md", "w", encoding="utf-8") as f:
-        f.write(clean_text1)
-    with open(f"output/{os.path.basename(file2)}_clean.md", "w", encoding="utf-8") as f:
-        f.write(clean_text2)
-
     # Calculate similarities
     cosine_sim = calculate_similarity(clean_text1, clean_text2)
     overlap_ratio, words1, words2 = calculate_word_overlap(clean_text1, clean_text2)
     levenshtein_dist, levenshtein_ratio = calculate_levenshtein_metrics(clean_text1, clean_text2)
+    rouge_scores = calculate_rouge_scores(clean_text1, clean_text2)
 
     # logger.info results
     model1 = os.path.basename(file1).split("_", 1)[1].removesuffix(".md")
@@ -324,25 +361,27 @@ def evaluate_files(file1: str, file2: str, preprocess: bool = True) -> tuple[flo
     logger.info("-" * 50)
     logger.info(f"Cosine Similarity: {cosine_sim:.4f}")
     logger.info(f"Word Overlap Ratio: {overlap_ratio:.4f}")
-    logger.info(f"Levenshtein Distance: {levenshtein_dist}")
-    logger.info(f"Levenshtein Ratio: {levenshtein_ratio:.4f}\n")
-    logger.info(f"Words in first file: {len(words1)}")
-    logger.info(f"Words in second file: {len(words2)}")
+    logger.info(f"Levenshtein Ratio: {levenshtein_ratio:.4f}")
+    logger.info(f"ROUGE-1 Score: {rouge_scores['rouge-1']:.4f}")
+    logger.info(f"ROUGE-2 Score: {rouge_scores['rouge-2']:.4f}")
+    logger.info(f"ROUGE-L Score: {rouge_scores['rouge-l']:.4f}\n")
+    logger.info(f"Words in {model1}: {len(words1)}")
+    logger.info(f"Words in {model2}: {len(words2)}")
     logger.info(f"Common words: {len(words1.intersection(words2))}")
-    logger.info(f"Unique to first file: {len(words1 - words2)}")
-    logger.info(f"Unique to second file: {len(words2 - words1)}")
+    logger.info(f"Unique to {model1}: {len(words1 - words2)}")
+    logger.info(f"Unique to {model2}: {len(words2 - words1)}")
 
     # log unique words
-    logger.debug("\nUnique words in first file:")
+    logger.debug(f"\nUnique words in {model1}:")
     logger.debug("-" * 50)
     logger.debug(sorted(words1 - words2))
-    logger.debug("\nUnique words in second file:")
+    logger.debug(f"\nUnique words in {model2}:")
     logger.debug("-" * 50)
     logger.debug(sorted(words2 - words1))
 
     print("")
 
-    return cosine_sim, overlap_ratio, levenshtein_ratio
+    return cosine_sim, overlap_ratio, levenshtein_ratio, rouge_scores
 
 
 def evaluate_all_files(filestem: str, parsers: list[str], remove_markdown: bool = True) -> None:
@@ -358,18 +397,17 @@ def evaluate_all_files(filestem: str, parsers: list[str], remove_markdown: bool 
     files = find_files(filestem, parsers)
 
     # Calculate overlap ratios for all pairs of files
-    overlap_ratios, levenshtein_ratios, cosine_ratios = [], [], []
+    overlap_ratios, levenshtein_ratios, cosine_ratios, rouge_ratios = [], [], [], []
     for file1, file2 in itertools.combinations_with_replacement(files, 2):
-        if (
-            os.path.basename(file1) == "merged-test-inputs_anthropic_claude-3-7-sonnet-20250219.md"
-            and os.path.basename(file2) == "merged-test-inputs_googleai_gemini-2.5-pro-exp-03-25.md"
-        ):
-            cosine_sim, overlap_ratio, levenshtein_ratio = evaluate_files(
-                file1, file2, preprocess=remove_markdown
-            )
-            overlap_ratios.append({"file1": file1, "file2": file2, "value": overlap_ratio})
-            levenshtein_ratios.append({"file1": file1, "file2": file2, "value": levenshtein_ratio})
-            cosine_ratios.append({"file1": file1, "file2": file2, "value": cosine_sim})
+        cosine_sim, overlap_ratio, levenshtein_ratio, rouge_scores = evaluate_files(
+            file1, file2, preprocess=remove_markdown
+        )
+        fname1 = os.path.basename(file1)
+        fname2 = os.path.basename(file2)
+        overlap_ratios.append({"file1": fname1, "file2": fname2, "value": overlap_ratio})
+        levenshtein_ratios.append({"file1": fname1, "file2": fname2, "value": levenshtein_ratio})
+        cosine_ratios.append({"file1": fname1, "file2": fname2, "value": cosine_sim})
+        rouge_ratios.append({"file1": fname1, "file2": fname2, "value": rouge_scores})
 
     # Create and save heatmap
     suffix = " with Markdown" if not remove_markdown else ""
@@ -393,23 +431,47 @@ def evaluate_all_files(filestem: str, parsers: list[str], remove_markdown: bool 
             "label": "Cosine Ratio",
         },
     ]
+    # Add ROUGE metrics
+    for rouge_type in ["rouge-1", "rouge-2", "rouge-l"]:
+        rouge_metric = {
+            "ratios": [
+                {
+                    "file1": r["file1"],
+                    "file2": r["file2"],
+                    "value": r["value"][rouge_type],
+                }
+                for r in rouge_ratios
+            ],
+            "name": rouge_type,
+            "title": f"{rouge_type.upper()} Scores Heatmap{suffix}",
+            "label": f"{rouge_type.upper()} Score",
+        }
+        metrics.append(rouge_metric)
 
-    # suffix = "_w_markdown" if not remove_markdown else ""
-    # # Extract parser names from filenames (e.g., "output/test_anthropic.md" -> "anthropic")
-    # labels = [
-    #     "_".join(file.replace(".md", "").split("_")[-2 if not "textract" in file else -1 :])
-    #     for file in files
-    # ]
-    # for metric in metrics:
-    #     create_word_overlap_heatmap(
-    #         files,
-    #         metric["ratios"],
-    #         labels,
-    #         output_file=f"output/{metric['name']}_heatmap{suffix}.png",
-    #         title=metric["title"],
-    #         label=metric["label"],
-    #         cmap="RdYlBu_r",
-    #     )
+    # Save the metrics to a csv file
+    with open(f"output/{filestem}_metrics.csv", "w", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Metric", "File1", "File2", "Value"])
+        for metric in metrics:
+            for ratio in metric["ratios"]:
+                writer.writerow([metric["name"], ratio["file1"], ratio["file2"], ratio["value"]])
+
+    suffix = "_w_markdown" if not remove_markdown else ""
+    # Extract parser names from filenames (e.g., "output/test_anthropic.md" -> "anthropic")
+    labels = [
+        "_".join(file.replace(".md", "").split("_")[-2 if not "textract" in file else -1 :])
+        for file in files
+    ]
+    for metric in metrics:
+        create_word_overlap_heatmap(
+            files,
+            metric["ratios"],
+            labels,
+            output_file=f"output/{metric['name']}_heatmap{suffix}.png",
+            title=metric["title"],
+            label=metric["label"],
+            cmap="RdYlBu_r",
+        )
 
 
 def main() -> None:
