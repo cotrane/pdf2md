@@ -5,6 +5,7 @@ import argparse
 import glob
 import itertools
 import logging
+import os
 import re
 
 import matplotlib.pyplot as plt
@@ -33,8 +34,12 @@ def preprocess_markdown(text: str) -> str:
     # Remove headers
     text = re.sub(r"^#+\s+", "", text, flags=re.MULTILINE)
 
-    # Remove bold and italic
-    text = re.sub(r"[*_~`]", "", text)
+    # Remove bold and italic - handle both single and double markers
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)  # Bold with **
+    text = re.sub(r"__([^_]+)__", r"\1", text)  # Bold with __
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)  # Italic with *
+    text = re.sub(r"_([^_]+)_", r"\1", text)  # Italic with _
+    text = re.sub(r"[~`]", "", text)  # Remove remaining markdown markers
 
     # Remove links but keep link text
     text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
@@ -53,9 +58,23 @@ def preprocess_markdown(text: str) -> str:
     # Remove horizontal rules
     text = re.sub(r"^\s*[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
 
-    # Remove tables
-    text = re.sub(r"^\s*\|.*\|$", "", text, flags=re.MULTILINE)  # Table rows
-    text = re.sub(r"^\s*\|[-:|\s]+\|\s*$", "", text, flags=re.MULTILINE)  # Table separators
+    # Handle tables - preserve cell contents while removing markdown markers
+    # First, remove table separators (the line with dashes)
+    text = re.sub(r"^\s*\|[-:|\s]+\|\s*$", "", text, flags=re.MULTILINE)
+    # Remove line breaks in tables
+    text = re.sub(r"<br>", " ", text)
+    # Then, remove the pipe characters but keep cell contents, with exactly one
+    # space around each cell
+    text = re.sub(
+        r"^\s*\|(.*?)\|\s*$",
+        lambda m: " ".join(cell.strip() for cell in m.group(1).split("|")),
+        text,
+        flags=re.MULTILINE,
+    )
+    # Clean up any remaining pipe characters in the middle of lines
+    text = re.sub(r"\|", " ", text)
+    # Clean up multiple spaces between cells
+    text = re.sub(r"\s{2,}", " ", text)
 
     # Remove mathematical formulas
     text = re.sub(r"\$\$[\s\S]*?\$\$", "", text)  # Display math
@@ -70,7 +89,8 @@ def preprocess_markdown(text: str) -> str:
     text = re.sub(r"\\int", "", text)  # LaTeX integral symbol
     text = re.sub(r"\\infty", "", text)  # LaTeX infinity symbol
     text = re.sub(
-        r"\\alpha|\\beta|\\gamma|\\delta|\\epsilon|\\zeta|\\eta|\\theta|\\iota|\\kappa|\\lambda|\\mu|\\nu|\\xi|\\pi|\\rho|\\sigma|\\tau|\\upsilon|\\phi|\\chi|\\psi|\\omega",
+        r"\\alpha|\\beta|\\gamma|\\delta|\\epsilon|\\zeta|\\eta|\\theta|\\iota|\\kappa|\\lambda|"
+        r"\\mu|\\nu|\\xi|\\pi|\\rho|\\sigma|\\tau|\\upsilon|\\phi|\\chi|\\psi|\\omega",
         "",
         text,
     )  # Greek letters
@@ -85,6 +105,20 @@ def preprocess_markdown(text: str) -> str:
     text = re.sub(r"&[a-zA-Z]+;", "", text)  # HTML entities
     text = re.sub(r"\\[^a-zA-Z]", "", text)  # Escaped special characters
     text = re.sub(r"[^\w\s]", " ", text)  # Replace any remaining special characters with space
+
+    # Remove page numbers and section markers
+    text = re.sub(r"######\s+Page\s+\d+", "", text, flags=re.MULTILINE)
+    text = re.sub(
+        r"^\s*[*_]\s*\([^)]+\)\s*[*_]\s*$", "", text, flags=re.MULTILINE
+    )  # Italicized parenthetical text
+    text = re.sub(r"^\s*\d+\s*$", "", text, flags=re.MULTILINE)  # Standalone page numbers
+    text = re.sub(
+        r"^\s*Table of Contents\s*$", "", text, flags=re.MULTILINE
+    )  # Table of Contents headers
+    text = re.sub(r"^\s*\[.*?\]\s*$", "", text, flags=re.MULTILINE)  # Image references
+    text = re.sub(r"^\s*\[.*?\]\(.*?\)\s*$", "", text, flags=re.MULTILINE)  # Image links
+    text = re.sub(r"^\s*\[.*?\]\s*$", "", text, flags=re.MULTILINE)  # Footnote references
+    text = re.sub(r"^\s*\[.*?\]:\s*.*$", "", text, flags=re.MULTILINE)  # Footnote definitions
 
     # Clean up whitespace
     text = re.sub(r"\s+", " ", text)
@@ -230,8 +264,8 @@ def find_files(filestem: str, parsers: list[str]) -> list[str]:
     if len(files) == 0:
         logger.exception(f"Error: No files found for filestem {filestem} and parsers {parsers}")
         raise ValueError(f"No files found for filestem {filestem} and parsers {parsers}")
-    logger.info(f"Found {len(files)} files for filestem {filestem} and parsers {parsers}")
-    logger.info(files)
+    logger.debug(f"Found {len(files)} files for filestem {filestem} and parsers {parsers}")
+    logger.debug(files)
     return files
 
 
@@ -272,31 +306,41 @@ def evaluate_files(file1: str, file2: str, preprocess: bool = True) -> tuple[flo
         clean_text1 = text1
         clean_text2 = text2
 
+    # save preprocessed text to separate files
+    with open(f"output/{os.path.basename(file1)}_clean.md", "w", encoding="utf-8") as f:
+        f.write(clean_text1)
+    with open(f"output/{os.path.basename(file2)}_clean.md", "w", encoding="utf-8") as f:
+        f.write(clean_text2)
+
     # Calculate similarities
     cosine_sim = calculate_similarity(clean_text1, clean_text2)
     overlap_ratio, words1, words2 = calculate_word_overlap(clean_text1, clean_text2)
     levenshtein_dist, levenshtein_ratio = calculate_levenshtein_metrics(clean_text1, clean_text2)
 
     # logger.info results
-    logger.info("\nEvaluation Results:")
+    model1 = os.path.basename(file1).split("_", 1)[1].removesuffix(".md")
+    model2 = os.path.basename(file2).split("_", 1)[1].removesuffix(".md")
+    logger.info(f"Evaluation Results: {model1} vs {model2}")
     logger.info("-" * 50)
     logger.info(f"Cosine Similarity: {cosine_sim:.4f}")
     logger.info(f"Word Overlap Ratio: {overlap_ratio:.4f}")
     logger.info(f"Levenshtein Distance: {levenshtein_dist}")
-    logger.info(f"Levenshtein Ratio: {levenshtein_ratio:.4f}")
-    logger.info(f"\nWords in first file: {len(words1)}")
+    logger.info(f"Levenshtein Ratio: {levenshtein_ratio:.4f}\n")
+    logger.info(f"Words in first file: {len(words1)}")
     logger.info(f"Words in second file: {len(words2)}")
     logger.info(f"Common words: {len(words1.intersection(words2))}")
     logger.info(f"Unique to first file: {len(words1 - words2)}")
     logger.info(f"Unique to second file: {len(words2 - words1)}")
 
-    # logger.info unique words
-    logger.info("\nUnique words in first file:")
-    logger.info("-" * 50)
-    logger.info(sorted(words1 - words2))
-    logger.info("\nUnique words in second file:")
-    logger.info("-" * 50)
-    logger.info(sorted(words2 - words1))
+    # log unique words
+    logger.debug("\nUnique words in first file:")
+    logger.debug("-" * 50)
+    logger.debug(sorted(words1 - words2))
+    logger.debug("\nUnique words in second file:")
+    logger.debug("-" * 50)
+    logger.debug(sorted(words2 - words1))
+
+    print("")
 
     return cosine_sim, overlap_ratio, levenshtein_ratio
 
@@ -316,12 +360,16 @@ def evaluate_all_files(filestem: str, parsers: list[str], remove_markdown: bool 
     # Calculate overlap ratios for all pairs of files
     overlap_ratios, levenshtein_ratios, cosine_ratios = [], [], []
     for file1, file2 in itertools.combinations_with_replacement(files, 2):
-        cosine_sim, overlap_ratio, levenshtein_ratio = evaluate_files(
-            file1, file2, preprocess=remove_markdown
-        )
-        overlap_ratios.append({"file1": file1, "file2": file2, "value": overlap_ratio})
-        levenshtein_ratios.append({"file1": file1, "file2": file2, "value": levenshtein_ratio})
-        cosine_ratios.append({"file1": file1, "file2": file2, "value": cosine_sim})
+        if (
+            os.path.basename(file1) == "merged-test-inputs_anthropic_claude-3-7-sonnet-20250219.md"
+            and os.path.basename(file2) == "merged-test-inputs_googleai_gemini-2.5-pro-exp-03-25.md"
+        ):
+            cosine_sim, overlap_ratio, levenshtein_ratio = evaluate_files(
+                file1, file2, preprocess=remove_markdown
+            )
+            overlap_ratios.append({"file1": file1, "file2": file2, "value": overlap_ratio})
+            levenshtein_ratios.append({"file1": file1, "file2": file2, "value": levenshtein_ratio})
+            cosine_ratios.append({"file1": file1, "file2": file2, "value": cosine_sim})
 
     # Create and save heatmap
     suffix = " with Markdown" if not remove_markdown else ""
@@ -346,22 +394,22 @@ def evaluate_all_files(filestem: str, parsers: list[str], remove_markdown: bool 
         },
     ]
 
-    suffix = "_w_markdown" if not remove_markdown else ""
-    # Extract parser names from filenames (e.g., "output/test_anthropic.md" -> "anthropic")
-    labels = [
-        "_".join(file.replace(".md", "").split("_")[-2 if not "textract" in file else -1 :])
-        for file in files
-    ]
-    for metric in metrics:
-        create_word_overlap_heatmap(
-            files,
-            metric["ratios"],
-            labels,
-            output_file=f"output/{metric['name']}_heatmap{suffix}.png",
-            title=metric["title"],
-            label=metric["label"],
-            cmap="RdYlBu_r",
-        )
+    # suffix = "_w_markdown" if not remove_markdown else ""
+    # # Extract parser names from filenames (e.g., "output/test_anthropic.md" -> "anthropic")
+    # labels = [
+    #     "_".join(file.replace(".md", "").split("_")[-2 if not "textract" in file else -1 :])
+    #     for file in files
+    # ]
+    # for metric in metrics:
+    #     create_word_overlap_heatmap(
+    #         files,
+    #         metric["ratios"],
+    #         labels,
+    #         output_file=f"output/{metric['name']}_heatmap{suffix}.png",
+    #         title=metric["title"],
+    #         label=metric["label"],
+    #         cmap="RdYlBu_r",
+    #     )
 
 
 def main() -> None:
