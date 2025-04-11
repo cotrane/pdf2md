@@ -51,11 +51,12 @@ class MistralParser(BaseParser):
         self.client = Mistral(api_key=api_key)
         self.logger.debug("Mistral parser initialization complete")
 
-    def convert_pdf_to_markdown(self, pdf_path: str) -> str:
+    def convert_pdf_to_markdown(self, pdf_path: str, *, split_pages: bool = True) -> str:
         """Convert a PDF file to markdown using Mistral.
 
         Args:
             pdf_path: The path to the PDF file to convert.
+            split_pages: Whether to split the PDF into pages. Default is True.
 
         Returns:
             The converted markdown text.

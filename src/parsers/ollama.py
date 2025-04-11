@@ -55,61 +55,12 @@ class OllamaParser(BaseParser):
         }
         self.logger.debug("Ollama parser initialization complete")
 
-    def resize_image(self, image: Image.Image) -> Image.Image:
-        """Resize image to maintain aspect ratio with max width.
-
-        Args:
-            image: PIL Image to resize.
-
-        Returns:
-            Resized PIL Image.
-        """
-        if image.width > self.MAX_IMAGE_WIDTH:
-            ratio = self.MAX_IMAGE_WIDTH / image.width
-            new_height = int(image.height * ratio)
-            return image.resize((self.MAX_IMAGE_WIDTH, new_height), Image.Resampling.LANCZOS)
-        return image
-
-    def read_pdf_as_base64_img(self, pdf_path: str) -> List[str]:
-        """Convert PDF pages to base64-encoded images.
-
-        Args:
-            pdf_path: Path to the PDF file.
-
-        Raises:
-            FileNotFoundError: If the PDF file doesn't exist.
-            IOError: If there's an error reading the PDF file.
-
-        Returns:
-            List[str]: List of base64-encoded image strings.
-        """
-        try:
-            # Convert PDF to images
-            images = convert_from_path(pdf_path)
-
-            # Convert each image to base64
-            base64_images = []
-            for image in images:
-                # Resize image if needed
-                image = self.resize_image(image)
-
-                import io
-
-                img_byte_arr = io.BytesIO()
-                image.save(img_byte_arr, format="PNG")
-                img_byte_arr = img_byte_arr.getvalue()
-                base64_images.append(base64.b64encode(img_byte_arr).decode("utf-8"))
-
-            return base64_images
-        except Exception as e:
-            self.logger.error(f"Error converting PDF to images: {str(e)}", exc_info=True)
-            raise
-
-    def convert_pdf_to_markdown(self, pdf_path: str) -> str:
+    def convert_pdf_to_markdown(self, pdf_path: str, *, split_pages: bool = True) -> str:
         """Convert a PDF file to markdown using Ollama.
 
         Args:
             pdf_path: The path to the PDF file to convert.
+            split_pages: Whether to split the PDF into pages. Default is True.
 
         Raises:
             FileNotFoundError: If the PDF file doesn't exist.
@@ -123,7 +74,7 @@ class OllamaParser(BaseParser):
         try:
             # Convert PDF to base64 images
             self.logger.debug(f"Converting PDF to images: {pdf_path}")
-            base64_images = self.read_pdf_as_base64_img(pdf_path)
+            base64_images = list(self.read_pdf_as_base64_img(pdf_path))
 
             prompt = "Convert the attached pdf to markdown format for me please."
 

@@ -7,14 +7,15 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from parsers.anthropic import AnthropicParser
-from parsers.googleai import GoogleAIParser
-from parsers.mistral import MistralParser
-from parsers.ollama import OllamaParser
-from parsers.openai import OpenAIParser
-from parsers.textract import TextractParser
-from parsers.unstructuredio import UnstructuredIOParser
-from utils.logging import setup_logging
+from parsers.anthropic import AnthropicParser  # type: ignore
+from parsers.googleai import GoogleAIParser  # type: ignore
+from parsers.huggingface import HuggingFaceParser  # type: ignore
+from parsers.mistral import MistralParser  # type: ignore
+from parsers.ollama import OllamaParser  # type: ignore
+from parsers.openai import OpenAIParser  # type: ignore
+from parsers.textract import TextractParser  # type: ignore
+from parsers.unstructuredio import UnstructuredIOParser  # type: ignore
+from utils.logging import setup_logging  # type: ignore  # pylint: disable=no-name-in-module
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +33,7 @@ PARSERS = {
     "openai": OpenAIParser,
     "textract": TextractParser,
     "unstructuredio": UnstructuredIOParser,
+    "huggingface": HuggingFaceParser,
 }
 
 
@@ -138,6 +140,11 @@ def setup_cli_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="The logging level to use. Defaults to INFO.",
     )
+    parser.add_argument(
+        "--split-pages",
+        action="store_true",
+        help="Split the PDF into pages and process each page separately. Not used in all parsers.",
+    )
 
     args = parser.parse_args()
 
@@ -173,7 +180,9 @@ def main() -> None:
         )
 
         # Convert PDF to markdown
-        markdown_text = pdf_parser.convert_pdf_to_markdown(args.input_pdf_path)
+        markdown_text = pdf_parser.convert_pdf_to_markdown(
+            args.input_pdf_path, split_pages=args.split_pages
+        )
 
         # Save the markdown
         pdf_parser.save_markdown(markdown_text, str(output_path))

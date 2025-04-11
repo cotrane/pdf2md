@@ -12,9 +12,6 @@ wheels/
 # Ignore macOS files
 .DS_Store
 
-# Ignore cursor rules
-*.cursor
-
 # Ignore mypy cache
 .mypy_cache/
 

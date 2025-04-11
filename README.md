@@ -36,7 +36,7 @@ source .venv/bin/activate  # On Unix/macOS
 3. Install dependencies:
 
 ```bash
-uv pip install .
+uv pip install -e ".[dev]"
 ```
 
 ## Configuration
@@ -132,6 +132,42 @@ In order to evaluate only the OCR part of the output file, we can remove all mar
 ```bash
 uv run src/evaluate.py -f <filename> -m
 ```
+
+## Running Tests
+
+### Unit Tests
+
+To run all unit tests:
+```bash
+uv run pytest tests/ -v
+```
+
+To run tests with coverage:
+```bash
+uv run pytest tests/ -v --cov=src --cov-report=term-missing
+```
+
+### Integration Tests
+
+Integration tests require external services to be configured. To run them:
+```bash
+uv run pytest tests/ -v -m integration
+```
+
+### Test Categories
+
+- `test_base.py`: Tests for the base parser functionality
+- `test_run.py`: Tests for the main script functionality
+- `test_integration.py`: Integration tests requiring external services
+
+## Test Configuration
+
+The test suite is configured in `pyproject.toml` with the following settings:
+
+- Test paths: `tests/`
+- Test file pattern: `test_*.py`
+- Coverage reporting: Enabled
+- Integration test marker: `@pytest.mark.integration`
 
 ## Development
 

@@ -1,0 +1,15 @@
+# Ignore all .env files
+.env*
+
+# Ignore all config files
+config*
+
+# Ignore all settings files
+settings*
+
+# Ignore all input files
+input*
+
+# Ignore all output files
+output*
+

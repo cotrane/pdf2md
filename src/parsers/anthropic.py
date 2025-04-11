@@ -53,12 +53,12 @@ class AnthropicParser(BaseParser):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.logger.debug("Anthropic parser initialization complete")
 
-    def convert_pdf_to_markdown(self, pdf_path: str) -> str:
+    def convert_pdf_to_markdown(self, pdf_path: str, *, split_pages: bool = True) -> str:
         """Convert a PDF file to markdown using Anthropic.
 
         Args:
             pdf_path: The path to the PDF file to convert.
-
+            split_pages: Whether to split the PDF into pages. Default is True.
         Returns:
             The converted markdown text.
 
@@ -72,7 +72,7 @@ class AnthropicParser(BaseParser):
         try:
             page_count = self.get_pdf_page_count(pdf_path)
 
-            if page_count > 1:
+            if page_count > 1 and split_pages:
                 pdf_pages = self.split_pdf_into_pages(pdf_path)
             else:
                 pdf_pages = [pdf_path]

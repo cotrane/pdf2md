@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import sys
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +19,7 @@ from rouge import Rouge
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from utils.logging import setup_logging
+from utils.logging import setup_logging  # pylint: disable=no-name-in-module
 
 # Set up logging
 setup_logging()
@@ -258,7 +259,7 @@ def create_word_overlap_heatmap(
 
     # Create heatmap
     plt.figure(figsize=(12, 12))  # Increased figure size for better readability
-    ax = sns.heatmap(
+    ax = sns.heatmap(  # pylint: disable=unused-variable
         matrix,
         xticklabels=labels,
         yticklabels=labels,
@@ -351,7 +352,7 @@ def evaluate_files(
     # Calculate similarities
     cosine_sim = calculate_similarity(clean_text1, clean_text2)
     overlap_ratio, words1, words2 = calculate_word_overlap(clean_text1, clean_text2)
-    levenshtein_dist, levenshtein_ratio = calculate_levenshtein_metrics(clean_text1, clean_text2)
+    _, levenshtein_ratio = calculate_levenshtein_metrics(clean_text1, clean_text2)
     rouge_scores = calculate_rouge_scores(clean_text1, clean_text2)
 
     # logger.info results
@@ -384,6 +385,7 @@ def evaluate_files(
     return cosine_sim, overlap_ratio, levenshtein_ratio, rouge_scores
 
 
+# pylint: disable=too-many-locals
 def evaluate_all_files(filestem: str, parsers: list[str], remove_markdown: bool = True) -> None:
     """Evaluate similarity between all pairs of markdown files.
 
@@ -393,79 +395,84 @@ def evaluate_all_files(filestem: str, parsers: list[str], remove_markdown: bool 
         remove_markdown: Whether to remove markdown formatting from the files.
             Default is True.
     """
-    # Find all files with the given filestem and parsers
     files = find_files(filestem, parsers)
+    suffix = " with Markdown" if not remove_markdown else ""
 
-    # Calculate overlap ratios for all pairs of files
-    overlap_ratios, levenshtein_ratios, cosine_ratios, rouge_ratios = [], [], [], []
+    # Calculate all metrics in a single pass
+    metrics_data: list[dict[str, Any]] = []
     for file1, file2 in itertools.combinations_with_replacement(files, 2):
         cosine_sim, overlap_ratio, levenshtein_ratio, rouge_scores = evaluate_files(
             file1, file2, preprocess=remove_markdown
         )
-        fname1 = os.path.basename(file1)
-        fname2 = os.path.basename(file2)
-        overlap_ratios.append({"file1": fname1, "file2": fname2, "value": overlap_ratio})
-        levenshtein_ratios.append({"file1": fname1, "file2": fname2, "value": levenshtein_ratio})
-        cosine_ratios.append({"file1": fname1, "file2": fname2, "value": cosine_sim})
-        rouge_ratios.append({"file1": fname1, "file2": fname2, "value": rouge_scores})
+        metrics_data.append(
+            {
+                "files": (os.path.basename(file1), os.path.basename(file2)),
+                "word_overlap": overlap_ratio,
+                "levenshtein": levenshtein_ratio,
+                "cosine": cosine_sim,
+                "rouge": rouge_scores,
+            }
+        )
 
-    # Create and save heatmap
-    suffix = " with Markdown" if not remove_markdown else ""
-    metrics = [
+    # Define metric configurations
+    metric_configs: list[dict[str, str]] = [
         {
-            "ratios": overlap_ratios,
             "name": "word_overlap",
             "title": f"Word Overlap Ratios Heatmap{suffix}",
             "label": "Overlap Ratio",
         },
         {
-            "ratios": levenshtein_ratios,
             "name": "levenshtein",
             "title": f"Levenshtein Ratios Heatmap{suffix}",
             "label": "Levenshtein Ratio",
         },
-        {
-            "ratios": cosine_ratios,
-            "name": "cosine",
-            "title": f"Cosine Ratios Heatmap{suffix}",
-            "label": "Cosine Ratio",
-        },
+        {"name": "cosine", "title": f"Cosine Ratios Heatmap{suffix}", "label": "Cosine Ratio"},
     ]
+
     # Add ROUGE metrics
     for rouge_type in ["rouge-1", "rouge-2", "rouge-l"]:
-        rouge_metric = {
-            "ratios": [
-                {
-                    "file1": r["file1"],
-                    "file2": r["file2"],
-                    "value": r["value"][rouge_type],
-                }
-                for r in rouge_ratios
-            ],
-            "name": rouge_type,
-            "title": f"{rouge_type.upper()} Scores Heatmap{suffix}",
-            "label": f"{rouge_type.upper()} Score",
-        }
-        metrics.append(rouge_metric)
+        metric_configs.append(
+            {
+                "name": rouge_type,
+                "title": f"{rouge_type.upper()} Scores Heatmap{suffix}",
+                "label": f"{rouge_type.upper()} Score",
+            }
+        )
 
-    # Save the metrics to a csv file
+    # Save metrics to CSV
     with open(f"output/{filestem}_metrics.csv", "w", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["Metric", "File1", "File2", "Value"])
-        for metric in metrics:
-            for ratio in metric["ratios"]:
-                writer.writerow([metric["name"], ratio["file1"], ratio["file2"], ratio["value"]])
+        for metric in metric_configs:
+            for data in metrics_data:
+                value = (
+                    data["rouge"][metric["name"]]
+                    if "rouge" in metric["name"]
+                    else data[metric["name"]]
+                )
+                writer.writerow([metric["name"], data["files"][0], data["files"][1], value])
 
-    suffix = "_w_markdown" if not remove_markdown else ""
-    # Extract parser names from filenames (e.g., "output/test_anthropic.md" -> "anthropic")
+    # Create heatmaps
     labels = [
-        "_".join(file.replace(".md", "").split("_")[-2 if not "textract" in file else -1 :])
+        "_".join(file.replace(".md", "").split("_")[-2 if "textract" not in file else -1 :])
         for file in files
     ]
-    for metric in metrics:
+    for metric in metric_configs:
+        ratios = [
+            {
+                "file1": data["files"][0],
+                "file2": data["files"][1],
+                "value": (
+                    data["rouge"][metric["name"]]
+                    if "rouge" in metric["name"]
+                    else data[metric["name"]]
+                ),
+            }
+            for data in metrics_data
+        ]
         create_word_overlap_heatmap(
             files,
-            metric["ratios"],
+            ratios,
             labels,
             output_file=f"output/{metric['name']}_heatmap{suffix}.png",
             title=metric["title"],

@@ -89,10 +89,9 @@ class GoogleAIParser(BaseParser):
                 pdf_file_id,
             ],
         )
-
         return response.text  # type: ignore
 
-    def convert_pdf_to_markdown(self, pdf_path: str, split_pages: bool = False) -> str:
+    def convert_pdf_to_markdown(self, pdf_path: str, *, split_pages: bool = False) -> str:
         """Convert a PDF file to markdown using Gemini.
 
         Args:
