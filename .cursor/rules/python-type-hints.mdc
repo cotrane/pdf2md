@@ -1,0 +1,81 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Python Type Hints Rule
+
+This rule enforces the use of built-in types for type hints in Python code when applicable. This follows modern Python practices (Python 3.9+) and makes the code more intuitive and maintainable.
+
+## Rules
+
+1. Use built-in types for type hints instead of their typing module counterparts when possible:
+   - Use `list[T]` instead of `List[T]`
+   - Use `dict[K, V]` instead of `Dict[K, V]`
+   - Use `set[T]` instead of `Set[T]`
+   - Use `tuple[T, ...]` instead of `Tuple[T, ...]`
+   - Use `frozenset[T]` instead of `FrozenSet[T]`
+
+2. Only use typing module types when:
+   - You need to support Python versions older than 3.9
+   - You're using special types like `Union`, `Optional`, `Any`, etc.
+   - You're using generic types that don't have built-in equivalents
+
+## Examples
+
+✅ Good:
+```python
+def process_data(data: list[str]) -> dict[str, int]:
+    return {"count": len(data)}
+
+def get_items() -> set[int]:
+    return {1, 2, 3}
+
+def create_pairs() -> tuple[str, int]:
+    return ("key", 42)
+```
+
+❌ Bad:
+```python
+from typing import List, Dict, Set, Tuple
+
+def process_data(data: List[str]) -> Dict[str, int]:
+    return {"count": len(data)}
+
+def get_items() -> Set[int]:
+    return {1, 2, 3}
+
+def create_pairs() -> Tuple[str, int]:
+    return ("key", 42)
+```
+
+## Exceptions
+
+1. Keep using typing module types for:
+   - `Any`
+   - `Union`
+   - `Optional`
+   - `Literal`
+   - `TypeVar`
+   - `Generic`
+   - `Protocol`
+   - Other special typing constructs
+
+2. When backward compatibility is required (Python < 3.9), use the typing module types.
+
+## Benefits
+
+1. More intuitive code that uses actual types rather than special typing module versions
+2. Reduced imports from typing module
+3. Better IDE support and type checking
+4. Follows modern Python best practices
+5. Makes the code more maintainable and easier to understand
+
+## Implementation
+
+When reviewing or modifying code:
+1. Check for typing module imports
+2. Replace typing module types with built-in types where applicable
+3. Keep special typing module types when needed
+4. Update docstrings to reflect the use of built-in types
+5. Ensure type hints are consistent throughout the codebase 

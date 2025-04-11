@@ -1,0 +1,71 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# UV Dependency Manager Rule
+
+This rule enforces the use of `uv` as the primary dependency management tool for Python projects.
+
+## Requirements
+
+1. All Python dependencies must be managed using `uv`:
+   - Use `uv.lock` for lockfile
+   - Use `pyproject.toml` for project metadata and dependencies
+   - Use `requirements.txt` only for development dependencies or when explicitly required
+
+2. Project Structure:
+   - Must have a `pyproject.toml` file
+   - Must have a `uv.lock` file
+   - Should not use `poetry.lock` or `Pipfile.lock`
+
+3. Commands:
+   - Use `uv pip install` instead of `pip install`
+   - Use `uv pip freeze` instead of `pip freeze`
+   - Use `uv pip compile` for generating requirements files
+
+4. Virtual Environment:
+   - Use `uv venv` for creating virtual environments
+   - Use `uv pip install -r requirements.txt` for installing dependencies
+
+## Examples
+
+✅ Correct:
+```bash
+# Creating a virtual environment
+uv venv
+
+# Installing dependencies
+uv pip install -r requirements.txt
+
+# Updating dependencies
+uv pip install --upgrade -r requirements.txt
+```
+
+❌ Incorrect:
+```bash
+# Using pip directly
+pip install -r requirements.txt
+
+# Using poetry
+poetry install
+
+# Using pipenv
+pipenv install
+```
+
+## Benefits
+
+1. Faster dependency resolution and installation
+2. Better reproducibility with lockfile
+3. Modern Python packaging standards
+4. Improved security with dependency scanning
+5. Better integration with modern Python tooling
+
+## Implementation
+
+When implementing this rule:
+1. Ensure all dependency management commands use `uv`
+2. Keep `uv.lock` and `pyproject.toml` in version control
+3. Document the use of `uv` in project README
+4. Set up CI/CD to use `uv` for dependency installation 
