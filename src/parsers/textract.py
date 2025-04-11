@@ -12,8 +12,8 @@ from .base import BaseParser
 class TextractParser(BaseParser):
     """A class to handle PDF to Markdown conversion using AWS Textract."""
 
-    AVAILABLE_MODELS = []
-    DEFAULT_MODEL = ""
+    AVAILABLE_MODELS: list[str] = []
+    DEFAULT_MODEL: str = ""
 
     def __init__(
         self,

@@ -57,7 +57,7 @@ class HuggingFaceParser(BaseParser):
 
         self.api_key = api_key
         self.client = InferenceClient(
-            provider=provider,
+            provider=provider,  # type: ignore
             api_key=api_key,
         )
         self.logger.debug("Hugging Face parser initialization complete")

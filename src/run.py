@@ -7,15 +7,15 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from parsers.anthropic import AnthropicParser
-from parsers.googleai import GoogleAIParser
-from parsers.huggingface import HuggingFaceParser
-from parsers.mistral import MistralParser
-from parsers.ollama import OllamaParser
-from parsers.openai import OpenAIParser
-from parsers.textract import TextractParser
-from parsers.unstructuredio import UnstructuredIOParser
-from utils.logging import setup_logging
+from parsers.anthropic import AnthropicParser  # type: ignore
+from parsers.googleai import GoogleAIParser  # type: ignore
+from parsers.huggingface import HuggingFaceParser  # type: ignore
+from parsers.mistral import MistralParser  # type: ignore
+from parsers.ollama import OllamaParser  # type: ignore
+from parsers.openai import OpenAIParser  # type: ignore
+from parsers.textract import TextractParser  # type: ignore
+from parsers.unstructuredio import UnstructuredIOParser  # type: ignore
+from utils.logging import setup_logging  # type: ignore  # pylint: disable=no-name-in-module
 
 # Load environment variables
 load_dotenv()
