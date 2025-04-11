@@ -1,0 +1,46 @@
+name: Lint and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          make install
+
+      - name: Run pylint
+        run: |
+          make check-lint
+
+      - name: Run black
+        run: |
+          make check-format
+
+      - name: Run mypy
+        run: |
+          make check-types
+
+      - name: Run tests with coverage
+        run: |
+          make test
