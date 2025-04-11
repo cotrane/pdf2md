@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from parsers.anthropic import AnthropicParser
 from parsers.googleai import GoogleAIParser
+from parsers.huggingface import HuggingFaceParser
 from parsers.mistral import MistralParser
 from parsers.ollama import OllamaParser
 from parsers.openai import OpenAIParser
@@ -32,6 +33,7 @@ PARSERS = {
     "openai": OpenAIParser,
     "textract": TextractParser,
     "unstructuredio": UnstructuredIOParser,
+    "huggingface": HuggingFaceParser,
 }
 
 
