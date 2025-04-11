@@ -1,15 +1,9 @@
 """Hugging Face parser for PDF to Markdown conversion."""
 
-import base64
-import io
 import os
-from pathlib import Path
-from typing import Generator
 
 import tenacity
 from huggingface_hub import InferenceClient, InferenceTimeoutError
-from pdf2image import convert_from_path
-from PIL import Image
 
 from .base import BaseParser
 
@@ -26,7 +20,6 @@ class HuggingFaceParser(BaseParser):
     PROVIDER_TO_ENV_VAR = {
         "hf-inference": "HUGGINGFACE_API_KEY",
     }
-    MAX_IMAGE_WIDTH = 1920
 
     def __init__(
         self,
@@ -68,52 +61,6 @@ class HuggingFaceParser(BaseParser):
             api_key=api_key,
         )
         self.logger.debug("Hugging Face parser initialization complete")
-
-    def resize_image(self, image: Image.Image) -> Image.Image:
-        """Resize image to maintain aspect ratio with max width.
-
-        Args:
-            image: PIL Image to resize.
-
-        Returns:
-            Resized PIL Image.
-        """
-        if image.width > self.MAX_IMAGE_WIDTH:
-            ratio = self.MAX_IMAGE_WIDTH / image.width
-            new_height = int(image.height * ratio)
-            return image.resize((self.MAX_IMAGE_WIDTH, new_height), Image.Resampling.LANCZOS)
-        return image
-
-    def read_pdf_as_base64_img(self, pdf_path: str) -> Generator[str, None, None]:
-        """Convert PDF pages to base64-encoded images.
-
-        Args:
-            pdf_path: Path to the PDF file.
-
-        Raises:
-            FileNotFoundError: If the PDF file doesn't exist.
-            IOError: If there's an error reading the PDF file.
-
-        Returns:
-            List[str]: List of base64-encoded image strings.
-        """
-        try:
-            # Convert PDF to images
-            images = convert_from_path(pdf_path)
-
-            # Convert each image to base64
-            for image in images:
-                # Resize image if needed
-                image = self.resize_image(image)
-
-                img_byte_arr = io.BytesIO()
-                image.save(img_byte_arr, format="PNG")
-                img_byte_arr = img_byte_arr.getvalue()
-
-                yield base64.b64encode(img_byte_arr).decode("utf-8")
-        except Exception as e:
-            self.logger.error(f"Error converting PDF to images: {str(e)}", exc_info=True)
-            raise
 
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(3),
@@ -157,7 +104,7 @@ class HuggingFaceParser(BaseParser):
             self.logger.error(f"Error generating response: {str(e)}", exc_info=True)
             raise
 
-    def convert_pdf_to_markdown(self, pdf_path: str, split_pages: bool = False) -> str:
+    def convert_pdf_to_markdown(self, pdf_path: str, *, split_pages: bool = True) -> str:
         """Convert a PDF file to markdown using Gemini.
 
         Args:

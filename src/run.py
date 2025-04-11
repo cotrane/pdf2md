@@ -140,6 +140,11 @@ def setup_cli_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="The logging level to use. Defaults to INFO.",
     )
+    parser.add_argument(
+        "--split-pages",
+        action="store_true",
+        help="Split the PDF into pages and process each page separately. Not used in all parsers.",
+    )
 
     args = parser.parse_args()
 
@@ -175,7 +180,9 @@ def main() -> None:
         )
 
         # Convert PDF to markdown
-        markdown_text = pdf_parser.convert_pdf_to_markdown(args.input_pdf_path)
+        markdown_text = pdf_parser.convert_pdf_to_markdown(
+            args.input_pdf_path, split_pages=args.split_pages
+        )
 
         # Save the markdown
         pdf_parser.save_markdown(markdown_text, str(output_path))

@@ -1,18 +1,22 @@
 """Base parser class for PDF to Markdown conversion."""
 
 import base64
+import io
 import logging
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import Generator
 
 import fitz  # PyMuPDF
+from pdf2image import convert_from_path
+from PIL import Image
 
 
 class BaseParser(ABC):
     """Base class for PDF to Markdown parsers."""
 
+    MAX_IMAGE_WIDTH = 1920
     SYSTEM_PROMPT = """
     You are a specialized PDF to Markdown converter. Your task is to convert PDF content to clean, properly formatted markdown text. Follow these strict rules:
 
@@ -96,7 +100,6 @@ class BaseParser(ABC):
             FileNotFoundError: If the PDF file doesn't exist.
             IOError: If there's an error reading the PDF file.
         """
-        pass
 
     def validate_pdf_path(self, pdf_path: str) -> None:
         """Validate that the PDF file exists and is readable.
@@ -136,6 +139,52 @@ class BaseParser(ABC):
             binary_data = f.read()
             base64_encoded_data = base64.standard_b64encode(binary_data)
             return base64_encoded_data.decode("utf-8")
+
+    def resize_image(self, image: Image.Image) -> Image.Image:
+        """Resize image to maintain aspect ratio with max width.
+
+        Args:
+            image: PIL Image to resize.
+
+        Returns:
+            Resized PIL Image.
+        """
+        if image.width > self.MAX_IMAGE_WIDTH:
+            ratio = self.MAX_IMAGE_WIDTH / image.width
+            new_height = int(image.height * ratio)
+            return image.resize((self.MAX_IMAGE_WIDTH, new_height), Image.Resampling.LANCZOS)
+        return image
+
+    def read_pdf_as_base64_img(self, pdf_path: str) -> Generator[str, None, None]:
+        """Convert PDF pages to base64-encoded images.
+
+        Args:
+            pdf_path: Path to the PDF file.
+
+        Raises:
+            FileNotFoundError: If the PDF file doesn't exist.
+            IOError: If there's an error reading the PDF file.
+
+        Returns:
+            List[str]: List of base64-encoded image strings.
+        """
+        try:
+            # Convert PDF to images
+            images = convert_from_path(pdf_path)
+
+            # Convert each image to base64
+            for image in images:
+                # Resize image if needed
+                image = self.resize_image(image)
+
+                img_byte_io = io.BytesIO()
+                image.save(img_byte_io, format="PNG")
+                img_byte_arr = img_byte_io.getvalue()
+
+                yield base64.b64encode(img_byte_arr).decode("utf-8")
+        except Exception as e:
+            self.logger.error(f"Error converting PDF to images: {str(e)}", exc_info=True)
+            raise
 
     def save_markdown(self, markdown_text: str, output_path: str) -> None:
         """Save the markdown text to a file.
