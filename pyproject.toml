@@ -27,7 +27,13 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["black>=25.1.0", "mypy>=1.15.0", "pylint>=3.3.6"]
+dev = [
+    "black>=25.1.0",
+    "mypy>=1.15.0",
+    "pylint>=3.3.6",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+]
 eval = [
     "python-levenshtein>=0.27.1",
     "pandas>=2.2.3",
