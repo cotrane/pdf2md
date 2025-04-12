@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from parsers.anthropic import AnthropicParser  # type: ignore
 from parsers.googleai import GoogleAIParser  # type: ignore
 from parsers.huggingface import HuggingFaceParser  # type: ignore
+from parsers.markitdown import MarkitdownParser  # type: ignore
 from parsers.mistral import MistralParser  # type: ignore
 from parsers.ollama import OllamaParser  # type: ignore
 from parsers.openai import OpenAIParser  # type: ignore
@@ -34,6 +35,7 @@ PARSERS = {
     "textract": TextractParser,
     "unstructuredio": UnstructuredIOParser,
     "huggingface": HuggingFaceParser,
+    "markitdown": MarkitdownParser,
 }
 
 
