@@ -4,13 +4,14 @@ A Python tool that converts PDF files to Markdown format using various AI models
 
 ## Features
 
-- Support for multiple AI providers:
+- Support for multiple AI providers and OCR solutions:
   - Anthropic (Claude)
   - Google (Gemini)
   - OpenAI
   - Mistral
   - Ollama
   - Unstructured.io
+  - MarkItDown
 - Configurable model selection for each provider
 - Structured output with proper markdown formatting
 - Environment variable configuration for API keys
@@ -78,6 +79,7 @@ The output file will be created in folder `output` and be called `<input_file_na
 - `ollama`: Uses Ollama models
 - `textract`: Uses Textract for text extraction
 - `unstructuredio`: Uses Unstructured.io API
+- `markitdown`: Uses Microsoft's open-source tool [MarkItDown](https://github.com/microsoft/markitdown)
 
 ### Model Selection
 
@@ -111,6 +113,9 @@ Available models per parser:
   - `gemini-2.0-flash-001`
   - `hi-res`
   - `fast`
+- MarkItDown:
+  - `pdfminer` (default)
+  - `gpt-4o`
 
 ### Evaluating Results
 
